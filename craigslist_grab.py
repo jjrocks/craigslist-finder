@@ -1,10 +1,13 @@
 import requests
+import re
 from bs4 import BeautifulSoup
 
-prefered_hoods = ["(mission district)"]
+prefered_hoods = ["(mission district)", "(SOMA / south beach)", "(hayes valley)", "(noe valley)", "(castro / upper market)", "(haight ashbury)"]
+total_beds = ["2br", "3br"]
+max_price = {"2br": 4700, "3br": 5900}
 
 def fetch_search_results():
-	base = "https://sfbay.craigslist.org/search/sfc/apa"
+	base = "https://sfbay.craigslist.org/search/sfc/apa?s=120"
 	resp = requests.get(base, timeout=3)
 	resp.raise_for_status()
 	return resp.content, resp.encoding
@@ -35,19 +38,35 @@ def get_title(listing):
 
 def get_link(listing):
 	link = listing.find_all("a", class_="result-title")
-	# return link.
+	return "https://sfbay.craigslist.org" + link[0].get('href')
 
 def get_beds(listing):
 	housing = listing.find_all(class_="housing")
-	print(housing)
 	if len(housing) > 0:
-		return housing[0].string
+		result = re.search(r"\dbr", str(housing[0]))
+		if (result):
+			return result.group(0)
+		return "N/A"
 	return "N/A"
 
 def filter_via_hood(listings):
 	filtered_list = []
 	for listing in listings:
 		if listing.district in prefered_hoods:
+			filtered_list.append(listing)
+	return filtered_list
+
+def filter_via_beds(listings):
+	filtered_list = []
+	for listing in listings:
+		if listing.beds in total_beds:
+			filtered_list.append(listing)
+	return filtered_list
+
+def filter_via_price(listings):
+	filtered_list = []
+	for listing in listings:
+		if listing.price < max_price[listing.beds]:
 			filtered_list.append(listing)
 	return filtered_list
 
@@ -66,10 +85,11 @@ class Listing(object):
 		self.price = get_prices(listing_row)
 		self.district = get_district(listing_row)
 		self.title = get_title(listing_row)
-		self.link = get_title(listing_row)
+		self.link = get_link(listing_row)
+		self.beds = get_beds(listing_row)
 
 	def __str__(self):
-		return str(self.price) + " - " + str(self.district)
+		return str(self.price) + " - " + str(self.beds) + " - " + str(self.district) + " - " + self.title + " - " self.link
 	def __repr__(self):
 		return str(self)
 		
@@ -86,5 +106,7 @@ for listing in listings:
 	all_listings.append(classListing)
 
 filtered_list = filter_via_hood(all_listings)
+filtered_list = filter_via_beds(filtered_list)
+filtered_list = filter_via_price(filtered_list)
 for filt in filtered_list:
 	print(filt)
